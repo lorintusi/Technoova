@@ -35,18 +35,22 @@ function getResourceName(resourceType, resourceId) {
 function renderResourcePill(assignment, canEdit) {
   const state = getState();
   const resourceName = getResourceName(assignment.resourceType || assignment.resource_type, assignment.resourceId || assignment.resource_id);
-  const assignmentId = assignment.id || assignment.id;
+  const assignmentId = assignment.id;
   const dispatchId = assignment.dispatchItemId || assignment.dispatch_item_id;
   const resourceType = assignment.resourceType || assignment.resource_type;
-  
-  if (canEdit && assignmentId) {
+  // Viaplano: Nur WORKER entfernen (eine Planungszeile = ein Mitarbeiter); Vehicle/Device-Pills haben composite id
+  const isCompositeId = assignmentId && (String(assignmentId).includes('-v-') || String(assignmentId).includes('-d-'));
+  const canRemove = canEdit && assignmentId && (resourceType === 'WORKER' || !isCompositeId);
+
+  if (canRemove) {
+    const effectiveId = assignment.dispatchAssignmentId != null ? assignment.dispatchAssignmentId : assignmentId;
     return `
       <span class="chip chip--removable">
         <span class="chip__text">${resourceName}</span>
         <button 
           class="chip__remove" 
           data-action="remove-assignment"
-          data-assignment-id="${assignmentId}"
+          data-assignment-id="${effectiveId}"
           data-dispatch-id="${dispatchId}"
           data-resource-type="${resourceType}"
           title="Entfernen"
@@ -54,7 +58,7 @@ function renderResourcePill(assignment, canEdit) {
       </span>
     `;
   }
-  
+
   return `<span class="chip"><span class="chip__text">${resourceName}</span></span>`;
 }
 
@@ -90,7 +94,7 @@ export function renderDispatchCard(item, assignments = []) {
   const vehicles = assignments.filter(a => (a.resourceType || a.resource_type) === 'VEHICLE');
   const devices = assignments.filter(a => (a.resourceType || a.resource_type) === 'DEVICE');
   
-  // Category label
+  // Viaplano-Slot: Kein category, Standard „Projekt“
   const category = item.category || 'PROJEKT';
   const categoryLabels = {
     'PROJEKT': 'Projekt',
@@ -161,7 +165,7 @@ export function renderDispatchCard(item, assignments = []) {
           </div>
         </div>
       </div>
-      ${canEdit ? `
+      ${canEdit && !item.assignmentId ? `
         <div class="dispatch-card__actions">
           <button class="btn-icon" data-action="edit-dispatch-item" data-dispatch-item-id="${item.id}" title="Bearbeiten">✏️</button>
           <button class="btn-icon" data-action="delete-dispatch-item" data-dispatch-item-id="${item.id}" title="Löschen">🗑️</button>

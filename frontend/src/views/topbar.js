@@ -14,8 +14,6 @@ export function renderTopbar() {
   
   if (!currentUser) return "";
   
-  const manageAllowed = currentUser.permissions && currentUser.permissions.includes("manage_users");
-  
   // Debug info (only in dev, check for ?debug=1 in URL)
   const isDebugMode = window.location.search.includes('debug=1');
   const debugInfo = isDebugMode ? `
@@ -54,12 +52,7 @@ export function renderTopbar() {
           <div class="brand__logo-text">technova</div>
         </div>
         <div class="nav-tabs">
-          <button class="${state.ui.activeMode === "plan" ? "active" : ""}" data-mode="plan">Planen</button>
-          ${
-            manageAllowed
-              ? `<button class="${state.ui.activeMode === "manage" ? "active" : ""}" data-mode="manage">Verwalten</button>`
-              : ""
-          }
+          <button class="active" data-mode="plan">Planen</button>
         </div>
       </div>
       <div class="topbar__actions">

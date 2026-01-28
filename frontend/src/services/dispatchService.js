@@ -5,6 +5,7 @@
 
 import { api } from '../api/endpoints.js';
 import { 
+  getState,
   setDispatchItems, 
   upsertDispatchItem, 
   removeDispatchItem,
@@ -57,11 +58,23 @@ function normalizeDispatchAssignment(assignment) {
   if (normalized.dispatch_item_id && !normalized.dispatchItemId) {
     normalized.dispatchItemId = normalized.dispatch_item_id;
   }
+  if (normalized.assignment_id != null && normalized.assignmentId == null) {
+    normalized.assignmentId = normalized.assignment_id;
+  }
   if (normalized.resource_type && !normalized.resourceType) {
     normalized.resourceType = normalized.resource_type;
   }
   if (normalized.resource_id && !normalized.resourceId) {
     normalized.resourceId = normalized.resource_id;
+  }
+  if (normalized.worker_id != null && normalized.workerId == null) {
+    normalized.workerId = normalized.worker_id;
+  }
+  if (normalized.vehicle_ids && !normalized.vehicleIds) {
+    normalized.vehicleIds = normalized.vehicle_ids;
+  }
+  if (normalized.device_ids && !normalized.deviceIds) {
+    normalized.deviceIds = normalized.device_ids;
   }
   
   return normalized;
@@ -239,6 +252,106 @@ export async function upsertDispatchAssignmentsBatch(dispatchItemId, assignments
     console.error('Error upserting dispatch assignments:', error);
     return { success: false, error: error.message || 'Failed to upsert dispatch assignments' };
   }
+}
+
+/**
+ * Create dispatch assignment for a slot (Viaplano: assignment_id + date + resource).
+ * @param {string|number} assignmentId - Assignment (Einsatz) ID
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @param {object} resources - { workerId?, vehicleIds?, deviceIds? }
+ * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ */
+export async function createDispatchAssignmentForSlot(assignmentId, date, resources = {}) {
+  try {
+    const payload = {
+      assignment_id: parseInt(assignmentId, 10),
+      date
+    };
+    if (resources.workerId != null) payload.worker_id = parseInt(resources.workerId, 10);
+    if (Array.isArray(resources.vehicleIds) && resources.vehicleIds.length) {
+      payload.vehicle_ids = resources.vehicleIds.map((id) => parseInt(id, 10));
+    }
+    if (Array.isArray(resources.deviceIds) && resources.deviceIds.length) {
+      payload.device_ids = resources.deviceIds.map((id) => parseInt(id, 10));
+    }
+    const response = await api.createDispatchAssignment(payload);
+    if (response.success && response.data) {
+      const normalized = normalizeDispatchAssignment(response.data);
+      upsertDispatchAssignmentsState([normalized]);
+      return { success: true, data: normalized };
+    }
+    return { success: false, error: response.error || 'Fehler beim Zuweisen' };
+  } catch (error) {
+    console.error('Error creating dispatch assignment for slot:', error);
+    return { success: false, error: error.message || 'Fehler beim Zuweisen' };
+  }
+}
+
+/**
+ * Get or update existing dispatch_assignment for slot and add resource (worker/vehicle/device).
+ * If a plan already exists for (assignmentId, date), update it; otherwise create new.
+ */
+export async function addResourceToSlot(assignmentId, date, resourceType, resourceId) {
+  const state = getState();
+  const existing = (state.data.dispatchAssignments || []).find(
+    (a) => String(a.assignment_id) === String(assignmentId) && a.date === date
+  );
+  const resourceIdNum = parseInt(resourceId, 10);
+  if (resourceType === 'WORKER') {
+    if (existing) {
+      const { api } = await import('../api/endpoints.js');
+      const res = await api.updateDispatchAssignment(existing.id, {
+        worker_id: resourceIdNum,
+        vehicle_ids: existing.vehicle_ids || existing.vehicleIds || [],
+        device_ids: existing.device_ids || existing.deviceIds || []
+      });
+      if (res.success && res.data) {
+        upsertDispatchAssignmentsState([normalizeDispatchAssignment(res.data)]);
+        return { success: true, data: res.data };
+      }
+      return { success: false, error: res.error };
+    }
+    return createDispatchAssignmentForSlot(assignmentId, date, { workerId: resourceId });
+  }
+  if (resourceType === 'VEHICLE') {
+    const vehicleIds = existing
+      ? [...(existing.vehicle_ids || existing.vehicleIds || []), resourceIdNum]
+      : [resourceIdNum];
+    if (existing) {
+      const { api } = await import('../api/endpoints.js');
+      const res = await api.updateDispatchAssignment(existing.id, {
+        worker_id: existing.worker_id ?? existing.workerId,
+        vehicle_ids: vehicleIds,
+        device_ids: existing.device_ids || existing.deviceIds || []
+      });
+      if (res.success && res.data) {
+        upsertDispatchAssignmentsState([normalizeDispatchAssignment(res.data)]);
+        return { success: true, data: res.data };
+      }
+      return { success: false, error: res.error };
+    }
+    return createDispatchAssignmentForSlot(assignmentId, date, { vehicleIds });
+  }
+  if (resourceType === 'DEVICE') {
+    const deviceIds = existing
+      ? [...(existing.device_ids || existing.deviceIds || []), resourceIdNum]
+      : [resourceIdNum];
+    if (existing) {
+      const { api } = await import('../api/endpoints.js');
+      const res = await api.updateDispatchAssignment(existing.id, {
+        worker_id: existing.worker_id ?? existing.workerId,
+        vehicle_ids: existing.vehicle_ids || existing.vehicleIds || [],
+        device_ids: deviceIds
+      });
+      if (res.success && res.data) {
+        upsertDispatchAssignmentsState([normalizeDispatchAssignment(res.data)]);
+        return { success: true, data: res.data };
+      }
+      return { success: false, error: res.error };
+    }
+    return createDispatchAssignmentForSlot(assignmentId, date, { deviceIds });
+  }
+  return { success: false, error: 'Unbekannter Ressourcentyp' };
 }
 
 /**

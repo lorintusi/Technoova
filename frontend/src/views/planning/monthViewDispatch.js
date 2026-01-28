@@ -3,10 +3,11 @@
  * Shows month grid with dispatch item counts and status dots
  */
 
-import { 
-  getState, 
+import {
+  getState,
   getDispatchItems,
-  getDispatchAssignments
+  getDispatchAssignments,
+  getPlanningSlotsForDateRange
 } from '../../state/index.js';
 import { formatDateLocal, formatDateForDisplay } from '../../utils/format.js';
 import { renderCalendarHeader } from './calendarHeader.js';
@@ -55,16 +56,16 @@ export function renderMonthViewDispatch() {
   const monthStartStr = formatDateLocal(monthStart);
   const monthEndStr = formatDateLocal(monthEnd);
   
-  // Get dispatch items for this month
-  const dispatchItems = getDispatchItems(monthStartStr, monthEndStr);
-  
-  // Group dispatch items by date
+  // Viaplano: Slots aus Einsätzen; sonst Legacy dispatch_items
+  const hasAssignments = (state.data.assignments || []).length > 0;
+  const slots = hasAssignments
+    ? getPlanningSlotsForDateRange(monthStartStr, monthEndStr)
+    : [];
+  const dispatchItems = hasAssignments ? [] : getDispatchItems(monthStartStr, monthEndStr);
   const itemsByDate = {};
-  dispatchItems.forEach(item => {
+  (slots.length > 0 ? slots : dispatchItems).forEach((item) => {
     const date = item.date;
-    if (!itemsByDate[date]) {
-      itemsByDate[date] = [];
-    }
+    if (!itemsByDate[date]) itemsByDate[date] = [];
     itemsByDate[date].push(item);
   });
   

@@ -209,18 +209,21 @@ on('click', '[data-action="remove-assignment"]', async (e) => {
     return;
   }
   
-  // Get resource name for toast
+  // Get resource name for toast (Viaplano: worker_id; Legacy: resourceType/resourceId)
   const state = getState();
   const assignment = (state.data.dispatchAssignments || []).find(
-    a => String(a.id) === String(assignmentId)
+    (a) => String(a.id) === String(assignmentId)
   );
-  
   let resourceName = 'Ressource';
   if (assignment) {
-    resourceName = getResourceName(
-      assignment.resourceType || assignment.resource_type,
-      assignment.resourceId || assignment.resource_id
-    );
+    if (assignment.worker_id != null) {
+      resourceName = getResourceName('WORKER', assignment.worker_id);
+    } else {
+      resourceName = getResourceName(
+        assignment.resourceType || assignment.resource_type,
+        assignment.resourceId || assignment.resource_id
+      );
+    }
   }
   
   // Loading state

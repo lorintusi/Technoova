@@ -49,6 +49,7 @@ const initialState = {
     resourceQuery: '', // Search query for resource sidebar
     unassignedQuery: '', // Search query for unassigned panel
     selectedResource: null, // Selected resource: { type: 'LOCATION'|'DISPATCH'|'WORKER'|'VEHICLE'|'DEVICE', id: string|null }
+    selectedSlot: null, // Board: { assignmentId, date } for context panel
     dayViewMode: 'timeline', // Day view mode: 'timeline' | 'grid'
     rightPanelCollapsed: false // Right panel (unassigned) collapsed state
   },

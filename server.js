@@ -860,6 +860,13 @@ const server = http.createServer((req, res) => {
       urlPath = '/index.html';
     }
 
+    // Favicon: kein 404 – Icon kommt per <link rel="icon"> im HTML
+    if (urlPath === '/favicon.ico') {
+      res.writeHead(204, { 'Content-Length': '0' });
+      res.end();
+      return;
+    }
+
     // Map static files to frontend directory
     let filePath;
     if (urlPath.startsWith('/backend/')) {

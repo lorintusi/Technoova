@@ -210,7 +210,7 @@ export function setupLegacyBridge() {
   window.renderTopbar = window.renderTopbar || (() => '');
   window.renderFooter = window.renderFooter || (() => '');
   window.renderPlanningShell = window.renderPlanningShell || (() => '');
-  window.renderManagementShell = window.renderManagementShell || (() => '');
+  window.renderManagementShell = window.renderManagementShell || (() => ''); // Verwalten entfernt
   
   // Modal functions (from old app.js, will be migrated)
   window.renderTimeEntryModal = window.renderTimeEntryModal || (() => '');

@@ -7,14 +7,12 @@ import { getState } from '../state/index.js';
 import { renderLogin } from './auth/loginView.js';
 import { renderTopbar } from './topbar.js';
 import { renderFooter } from './footer.js';
-import { renderPlanningShell } from './planning/planningShell.js';
-import { renderManagementShell } from './management/managementShell.js';
+import { renderBoardView } from './board/boardView.js';
 
 // Export render functions for legacy bridge
 window.renderTopbar = renderTopbar;
 window.renderFooter = renderFooter;
-window.renderPlanningShell = renderPlanningShell;
-window.renderManagementShell = renderManagementShell;
+window.renderBoardView = renderBoardView;
 
 // Import modal renders (these return empty string if not open)
 // These are available via legacy bridge from old app.js (will be migrated later)
@@ -50,7 +48,7 @@ export function renderApp() {
   app.innerHTML = `
   <div class="app-shell">
       ${renderTopbar()}
-      ${state.ui.activeMode === "plan" ? renderPlanningShell() : renderManagementShell()}
+      ${renderBoardView()}
       ${renderModal()}
       ${renderWizard()}
       ${renderEmpCal()}

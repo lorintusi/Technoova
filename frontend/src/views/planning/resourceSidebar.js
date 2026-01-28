@@ -190,14 +190,17 @@ function renderResourceItem(item, context) {
       }
       break;
     case 'DISPATCH':
-      if (item.date) {
+      if (item.start_date && item.end_date) {
+        const startStr = new Date(item.start_date + 'T00:00:00').toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
+        const endStr = new Date(item.end_date + 'T00:00:00').toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
+        meta = `<span class="resource-item__meta">${startStr} – ${endStr}</span>`;
+      } else if (item.date) {
         const dateObj = new Date(item.date + 'T00:00:00');
-        const dateStr = dateObj.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
-        meta = `<span class="resource-item__meta">${dateStr}</span>`;
+        meta = `<span class="resource-item__meta">${dateObj.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })}</span>`;
       }
       if (item.startTime && item.endTime) {
         meta += `<span class="resource-item__meta">${item.startTime} - ${item.endTime}</span>`;
-      } else if (item.allDay || item.all_day) {
+      } else if ((item.allDay || item.all_day) && !item.start_date) {
         meta += `<span class="resource-item__meta">Ganztägig</span>`;
       }
       break;

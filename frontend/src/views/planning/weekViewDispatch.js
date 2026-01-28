@@ -3,11 +3,13 @@
  * Shows dispatch items as cards for selected week
  */
 
-import { 
-  getState, 
+import {
+  getState,
   getDispatchItems,
   getDispatchAssignments,
-  getPlanningForWorkerId, 
+  getPlanningSlotsForDateRange,
+  getResourcePillsForSlot,
+  getPlanningForWorkerId,
   getActiveWorkerId,
   getActiveUser
 } from '../../state/index.js';
@@ -79,36 +81,55 @@ export function renderWeekViewDispatch() {
   // Get week number
   const weekNumber = getWeekNumber(weekStart);
   
-  // Get dispatch items for this week
-  // CRITICAL: Multiple dispatch items per day per worker are STANDARD
-  let dispatchItems = getDispatchItems(weekStartStr, weekEndStr);
-  
+  // Zentrales Planungsmodell: Slots aus assignments ableiten (Viaplano)
+  let slots = getPlanningSlotsForDateRange(weekStartStr, weekEndStr);
+  const hasAssignments = (state.data.assignments || []).length > 0;
+
+  // Fallback: Legacy dispatch_items, wenn keine Einsätze existieren
+  let dispatchItems = [];
+  if (slots.length === 0) {
+    dispatchItems = getDispatchItems(weekStartStr, weekEndStr);
+  }
+
   // Filter by worker role if needed (RBAC)
   if (!canCreate) {
-    // Worker sees only items where they are assigned
     const workerId = currentUser?.workerId || currentUser?.worker_id || currentUser?.id;
     if (workerId) {
-      dispatchItems = dispatchItems.filter(item => {
-        const assignments = getDispatchAssignments(item.id);
-        return assignments.some(a => 
-          (a.resourceType || a.resource_type) === 'WORKER' &&
-          String(a.resourceId || a.resource_id) === String(workerId)
-        );
-      });
+      if (slots.length > 0) {
+        slots = slots.filter((slot) => {
+          const pills = getResourcePillsForSlot(slot.assignmentId, slot.date);
+          return pills.some((p) => p.resourceType === 'WORKER' && String(p.resourceId) === String(workerId));
+        });
+      } else {
+        dispatchItems = dispatchItems.filter((item) => {
+          const assignments = getDispatchAssignments(item.id);
+          return assignments.some(
+            (a) =>
+              (a.resourceType || a.resource_type) === 'WORKER' &&
+              String(a.resourceId || a.resource_id) === String(workerId)
+          );
+        });
+      }
     } else {
-      dispatchItems = []; // No worker ID, show nothing
+      slots = [];
+      dispatchItems = [];
     }
   }
-  
-  // Group dispatch items by date
+
+  // Group by date: Slots oder Legacy-Items
   const itemsByDate = {};
-  dispatchItems.forEach(item => {
-    const date = item.date;
-    if (!itemsByDate[date]) {
-      itemsByDate[date] = [];
-    }
-    itemsByDate[date].push(item);
-  });
+  if (slots.length > 0) {
+    slots.forEach((slot) => {
+      if (!itemsByDate[slot.date]) itemsByDate[slot.date] = [];
+      itemsByDate[slot.date].push(slot);
+    });
+  } else {
+    dispatchItems.forEach((item) => {
+      const date = item.date;
+      if (!itemsByDate[date]) itemsByDate[date] = [];
+      itemsByDate[date].push(item);
+    });
+  }
   
   // Generate week days
   const weekDays = generateWeekDays(weekStart);
@@ -148,30 +169,36 @@ export function renderWeekViewDispatch() {
                 <div class="week-view-dispatch__cards">
                   ${dayItems
                     .sort((a, b) => {
-                      // Sort: timed items first (by start time), then all-day
-                      // CRITICAL: Multiple dispatch items per day are STANDARD
                       const aAllDay = a.allDay || a.all_day;
                       const bAllDay = b.allDay || b.all_day;
-                      
                       if (aAllDay && !bAllDay) return 1;
                       if (!aAllDay && bAllDay) return -1;
-                      
                       if (!aAllDay && !bAllDay) {
                         const aStart = a.startTime || a.start_time || '00:00';
                         const bStart = b.startTime || b.start_time || '00:00';
                         return aStart.localeCompare(bStart);
                       }
-                      
                       return 0;
                     })
-                    .map(item => {
-                      const assignments = getDispatchAssignments(item.id);
+                    .map((item) => {
+                      let assignments =
+                        item.assignmentId != null
+                          ? getResourcePillsForSlot(item.assignmentId, item.date)
+                          : getDispatchAssignments(item.id);
+                      if (item.assignmentId != null) {
+                        assignments = assignments.map((p) => ({
+                          ...p,
+                          dispatchItemId: item.id,
+                          dispatch_item_id: item.id
+                        }));
+                      }
                       return renderDispatchCard(item, assignments);
-                    }).join('')}
+                    })
+                    .join('')}
                 </div>
                 ${dayItems.length === 0 ? `
                   <div class="week-view-dispatch__empty">
-                    <em>Keine Einsätze</em>
+                    <em>${hasAssignments ? 'Keine Planung an diesem Tag' : 'Keine Einsätze – zuerst Einsatz anlegen'}</em>
                   </div>
                 ` : ''}
               </div>

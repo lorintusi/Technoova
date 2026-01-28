@@ -75,7 +75,6 @@ body {
   background: var(--bg-body);
   color: var(--text-main);
   min-height: 100vh;
-  padding-bottom: 80px;
 }
 
 a {
@@ -2191,7 +2190,7 @@ a {
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow: 0 -4px 24px rgba(106, 77, 247, 0.08);
   position: relative;
-  margin-top: 60px;
+  margin-top: auto;
 }
 
 .app-footer::before {

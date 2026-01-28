@@ -56,15 +56,17 @@ export function bindResourceNavHandlers() {
     // 4. Update dock active state (by updating dock buttons)
     updateDockActiveState(context);
     
-    // 5. Immediately render sidebar with new context
-    renderSidebarOnly();
+    // 5. Re-render: Board = full app; alte Shell = nur Sidebar
+    if (document.querySelector('.board')) renderApp();
+    else renderSidebarOnly();
   });
   
   // Resource search input
   on('input', '[data-role="resource-search"]', (e) => {
     const query = e.target.value || '';
     setResourceQuery(query);
-    renderSidebarOnly();
+    if (document.querySelector('.board')) renderApp();
+    else renderSidebarOnly();
   });
   
   // Unassigned panel search input
@@ -76,28 +78,8 @@ export function bindResourceNavHandlers() {
     renderApp();
   });
   
-  // Management tab navigation (from empty state CTA)
-  on('click', '[data-action="open-management-tab"]', async (e) => {
-    e.preventDefault();
-    const btn = e.target.closest('[data-action="open-management-tab"]');
-    const tab = btn?.getAttribute('data-action-param');
-    
-    if (tab) {
-      const state = getState();
-      setState({
-        ui: {
-          ...state.ui,
-          activeMode: 'manage',
-          managementTab: tab
-        }
-      });
-      
-      // Re-render app to show management view
-      const { renderApp } = await import('../views/renderApp.js');
-      renderApp();
-    }
-  });
-  
+  // Verwalten vorübergehend entfernt (open-management-tab nicht mehr gebunden)
+
   // Create dispatch item (from empty state CTA or week view)
   on('click', '[data-action="open-create-dispatch-item"]', async (e) => {
     e.preventDefault();
@@ -134,9 +116,15 @@ export function bindResourceNavHandlers() {
         showToast('Fehler beim Erstellen', 'error');
       }
     } else {
-      // Fallback: Open modal if no location selected
-      const { openDispatchItemModal } = await import('../views/modals/dispatchItemModal.js');
-      openDispatchItemModal(null, { date: targetDate });
+      // Viaplano: Einsätze + Planungen – Personal einplanen mit Datum öffnen
+      const hasAssignments = (getState().data.assignments || []).length > 0;
+      if (hasAssignments) {
+        const { openPlanningModal } = await import('../views/modals/planningModal.js');
+        openPlanningModal({ date: targetDate });
+      } else {
+        const { openDispatchItemModal } = await import('../views/modals/dispatchItemModal.js');
+        openDispatchItemModal(null, { date: targetDate });
+      }
     }
   });
   

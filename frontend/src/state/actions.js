@@ -924,7 +924,7 @@ export function removeDispatchAssignment(assignmentId) {
   setState({
     data: {
       ...state.data,
-      dispatchAssignments: state.data.dispatchAssignments.filter(a => a.id !== assignmentId)
+      dispatchAssignments: state.data.dispatchAssignments.filter((a) => String(a.id) !== String(assignmentId))
     }
   });
 }
@@ -1059,6 +1059,19 @@ export function clearSelectedResource() {
       ...getState().ui,
       selectedResource: null,
       selectedDispatchItemId: null
+    }
+  });
+}
+
+/**
+ * Set selected slot (Board: Zelle für Kontextpanel)
+ * @param {{ assignmentId: string|number, date: string }|null} slot - { assignmentId, date } or null
+ */
+export function setSelectedSlot(slot) {
+  setState({
+    ui: {
+      ...getState().ui,
+      selectedSlot: slot
     }
   });
 }

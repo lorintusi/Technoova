@@ -12,7 +12,10 @@ import { getState } from '../../state/index.js';
 export function renderPlanningModal(options = {}) {
   const state = getState();
   const assignments = state.data.assignments || [];
-  const workers = state.data.workers || [];
+  // Nur verfügbare Mitarbeiter (Arbeitsbereit) für Planung anzeigen
+  const workers = (state.data.workers || []).filter(
+    (w) => (w.status || '').toLowerCase() === 'arbeitsbereit'
+  );
   const vehicles = state.data.vehicles || [];
   const devices = state.data.devices || [];
   

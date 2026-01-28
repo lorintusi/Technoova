@@ -82,6 +82,9 @@ async function loadAllData() {
     // Normalize locations (snake_case to camelCase)
     const normalizedLocations = (Array.isArray(locations) ? locations : []).map(location => {
       const normalized = { ...location };
+      if (normalized.address == null && normalized.adresse != null) normalized.address = normalized.adresse;
+      if (normalized.code == null && normalized.referenz != null) normalized.code = normalized.referenz;
+      if (normalized.project_number == null && normalized.projektnummer != null) normalized.project_number = normalized.projektnummer;
       // Normalize resourcesRequired
       if (normalized.resources_required && !normalized.resourcesRequired) {
         normalized.resourcesRequired = Array.isArray(normalized.resources_required) 
@@ -339,10 +342,12 @@ async function bindGlobalHandlers() {
   const { bindPlanningEntryHandlers } = await import('./handlers/planningEntryHandlers.js');
   bindPlanningEntryHandlers();
   
-  // Bind management handlers
-  const { bindManagementHandlers } = await import('./handlers/managementHandlers.js');
-  bindManagementHandlers();
-  
+  // Verwalten vorübergehend entfernt – wird später neu aufgebaut
+
+  // Einsatzorte-Modal (Liste + Anlegen/Bearbeiten)
+  const { bindLocationModalHandlers } = await import('./handlers/locationModalHandlers.js');
+  bindLocationModalHandlers();
+
   // Bind medical certificates handlers
   const { bindMedicalCertificatesHandlers } = await import('./handlers/medicalCertificatesHandlers.js');
   bindMedicalCertificatesHandlers();
@@ -374,6 +379,10 @@ async function bindGlobalHandlers() {
   // Bind fullscreen handlers
   const { bindFullscreenHandlers } = await import('./handlers/fullscreenHandler.js');
   bindFullscreenHandlers();
+  
+  // Bind board handlers (Planungsboard)
+  const { bindBoardHandlers } = await import('./handlers/boardHandlers.js');
+  bindBoardHandlers();
   
   // Export user modal functions globally
   const { closeUserModal, openCreateUserModal, openEditUserModal } = await import('./views/modals/userModal.js');

@@ -4,7 +4,12 @@
  */
 
 import { getState } from '../../state/index.js';
-import { getDispatchItems, getDispatchAssignments } from '../../state/selectors.js';
+import {
+  getDispatchItems,
+  getDispatchAssignments,
+  getPlanningSlotsForDateRange,
+  getResourcePillsForSlot
+} from '../../state/selectors.js';
 import { formatDateLocal } from '../../utils/format.js';
 import { renderDispatchCard } from './dispatchCard.js';
 
@@ -25,13 +30,13 @@ export function renderDayGrid(date) {
   }
   
   const dateStr = formatDateLocal(dateObj);
-  
-  // Get all dispatch items for this date (not filtered by worker for grid view)
-  const dispatchItems = getDispatchItems(dateStr, dateStr);
-  
-  // Split into all-day and timed items
-  const allDayItems = dispatchItems.filter(item => item.allDay || item.all_day);
-  const timedItems = dispatchItems.filter(item => !(item.allDay || item.all_day));
+  const hasAssignments = (state.data.assignments || []).length > 0;
+  const slots = hasAssignments ? getPlanningSlotsForDateRange(dateStr, dateStr) : [];
+  const dispatchItems = hasAssignments ? [] : getDispatchItems(dateStr, dateStr);
+  const items = slots.length > 0 ? slots : dispatchItems;
+
+  const allDayItems = items.filter((item) => item.allDay || item.all_day);
+  const timedItems = items.filter((item) => !(item.allDay || item.all_day));
   
   // Sort timed items by start_time
   timedItems.sort((a, b) => {
@@ -52,9 +57,12 @@ export function renderDayGrid(date) {
             <h4 class="day-grid__section-title">Ganztägige Einsätze</h4>
           </div>
           <div class="day-grid__all-day-rows">
-            ${allDayItems.map(item => {
-              const assignments = getDispatchAssignments(item.id);
-              const location = state.data.locations.find(l => l.id === (item.locationId || item.location_id));
+            ${allDayItems.map((item) => {
+              const assignments =
+                item.assignmentId != null
+                  ? getResourcePillsForSlot(item.assignmentId, item.date)
+                  : getDispatchAssignments(item.id);
+              const location = state.data.locations.find((l) => l.id === (item.locationId || item.location_id));
               return renderGridRow(item, assignments, location, null, null, true);
             }).join('')}
           </div>
@@ -67,9 +75,12 @@ export function renderDayGrid(date) {
             <div class="day-grid__empty">
               <p>Keine zeitlichen Einsätze für diesen Tag</p>
             </div>
-          ` : timedItems.map(item => {
-            const assignments = getDispatchAssignments(item.id);
-            const location = state.data.locations.find(l => l.id === (item.locationId || item.location_id));
+          ` : timedItems.map((item) => {
+            const assignments =
+              item.assignmentId != null
+                ? getResourcePillsForSlot(item.assignmentId, item.date)
+                : getDispatchAssignments(item.id);
+            const location = state.data.locations.find((l) => l.id === (item.locationId || item.location_id));
             const startTime = item.startTime || item.start_time || '00:00';
             const endTime = item.endTime || item.end_time || '00:00';
             return renderGridRow(item, assignments, location, startTime, endTime, false, timeRange);

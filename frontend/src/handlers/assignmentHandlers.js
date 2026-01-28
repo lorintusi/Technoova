@@ -7,7 +7,6 @@ import { on } from './events.js';
 import { api } from '../api/endpoints.js';
 import { getState, setState } from '../state/index.js';
 import { renderApp } from '../views/renderApp.js';
-import { openAssignmentModal, closeAssignmentModal } from '../views/modals/assignmentModal.js';
 import { openPlanningModal, closePlanningModal } from '../views/modals/planningModal.js';
 import { showToast } from '../utils/ui.js';
 
@@ -17,27 +16,7 @@ import { showToast } from '../utils/ui.js';
 export function bindAssignmentHandlers() {
   // ========== ASSIGNMENT (Einsatz) HANDLERS ==========
   
-  // Open create assignment modal
-  on('click', '#btn-add-assignment', (e) => {
-    e.preventDefault();
-    console.log('[AssignmentHandler] Opening assignment modal');
-    openAssignmentModal();
-  });
-  
-  // Open edit assignment modal
-  on('click', '[data-action="edit-assignment"]', (e) => {
-    e.preventDefault();
-    const assignmentId = e.target.closest('[data-action="edit-assignment"]')?.getAttribute('data-assignment-id');
-    if (assignmentId) {
-      const state = getState();
-      const assignment = state.data.assignments.find(a => a.id == assignmentId);
-      if (assignment) {
-        console.log('[AssignmentHandler] Opening edit modal for assignment', assignment.id);
-        openAssignmentModal(assignment);
-      }
-    }
-  });
-  
+  // Assignment-Modal vorübergehend entfernt (+ Einsatz / Bearbeiten)
   // Delete assignment
   on('click', '[data-action="delete-assignment"]', async (e) => {
     e.preventDefault();
@@ -135,7 +114,6 @@ export function bindAssignmentHandlers() {
           });
         }
         
-        closeAssignmentModal();
         renderApp();
         showToast(isEdit ? 'Einsatz aktualisiert' : 'Einsatz erstellt', 'success');
       } else {
@@ -345,25 +323,13 @@ export function bindAssignmentHandlers() {
   
   // ========== MODAL CLOSE HANDLERS ==========
   
-  // Close assignment modal
-  on('click', '[data-close="assignment-modal"]', (e) => {
-    if (e.target === e.currentTarget) {
-      e.preventDefault();
-      closeAssignmentModal();
-    }
-  });
+  // Assignment-Modal vorübergehend entfernt
   
-  on('click', '#btn-close-assignment-modal, #btn-cancel-assignment-modal', (e) => {
-    e.preventDefault();
-    closeAssignmentModal();
-  });
-  
-  // Close planning modal
+  // Close planning modal nur bei Klick auf den Backdrop, nicht im Modal-Inhalt
   on('click', '[data-close="planning-modal"]', (e) => {
-    if (e.target === e.currentTarget) {
-      e.preventDefault();
-      closePlanningModal();
-    }
+    if (e.target.closest('.modal')) return;
+    e.preventDefault();
+    closePlanningModal();
   });
   
   on('click', '#btn-close-planning-modal, #btn-cancel-planning-modal', (e) => {

@@ -2,14 +2,15 @@
  * Day View with Dispatch Cards and Confirm Button
  */
 
-import { 
-  getState, 
-  getPlanningEntriesForDay, 
-  getActiveWorkerId, 
-  getActiveUserId, 
+import {
+  getState,
+  getPlanningEntriesForDay,
+  getActiveWorkerId,
+  getActiveUserId,
   getActiveUser,
   getDispatchItemsForWorkerDay,
-  getDispatchAssignments
+  getDispatchAssignments,
+  getResourcePillsForSlot
 } from '../../state/index.js';
 import { getDayViewMode } from '../../state/selectors.js';
 import { canConfirmDay } from '../../utils/permissions.js';
@@ -182,8 +183,17 @@ function renderTimelineView(dispatchItems, timeEntries, state) {
             <div class="day-view__section">
               <h4 class="day-view__section-title">Ganztägige Einsätze</h4>
               <div class="day-view__dispatch-cards day-view__dispatch-cards--all-day">
-                ${allDayItems.map(item => {
-                  const assignments = getDispatchAssignments(item.id);
+                ${allDayItems.map((item) => {
+                  let assignments = item.assignmentId != null
+                    ? getResourcePillsForSlot(item.assignmentId, item.date)
+                    : getDispatchAssignments(item.id);
+                  if (item.assignmentId != null) {
+                    assignments = assignments.map((p) => ({
+                      ...p,
+                      dispatchItemId: item.id,
+                      dispatch_item_id: item.id
+                    }));
+                  }
                   return renderDispatchCard(item, assignments);
                 }).join('')}
               </div>
@@ -194,8 +204,17 @@ function renderTimelineView(dispatchItems, timeEntries, state) {
             <div class="day-view__section">
               <h4 class="day-view__section-title">Tagesplan</h4>
               <div class="day-view__timeline">
-                ${timedItems.map(item => {
-                  const assignments = getDispatchAssignments(item.id);
+                ${timedItems.map((item) => {
+                  let assignments = item.assignmentId != null
+                    ? getResourcePillsForSlot(item.assignmentId, item.date)
+                    : getDispatchAssignments(item.id);
+                  if (item.assignmentId != null) {
+                    assignments = assignments.map((p) => ({
+                      ...p,
+                      dispatchItemId: item.id,
+                      dispatch_item_id: item.id
+                    }));
+                  }
                   const startTime = item.startTime || item.start_time || '00:00';
                   const endTime = item.endTime || item.end_time || '00:00';
                   return `

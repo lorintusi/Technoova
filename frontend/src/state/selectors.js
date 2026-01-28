@@ -20,8 +20,8 @@ let lastStateHash = null;
  */
 function getStateHash() {
   const state = getState();
-  // Simple hash based on data arrays length (for quick invalidation)
-  return `${state.data.dispatchItems?.length || 0}-${state.data.dispatchAssignments?.length || 0}-${state.data.workers?.length || 0}-${state.data.vehicles?.length || 0}-${state.data.devices?.length || 0}`;
+  // Include assignments so cache invalidates when Einsätze or Planungen change
+  return `${state.data.assignments?.length || 0}-${state.data.dispatchAssignments?.length || 0}-${state.data.dispatchItems?.length || 0}-${state.data.workers?.length || 0}-${state.data.vehicles?.length || 0}-${state.data.devices?.length || 0}`;
 }
 
 /**
@@ -365,39 +365,204 @@ export function getDispatchItem(itemId) {
 }
 
 /**
- * Get dispatch assignments for a dispatch item
- * @param {string|number} dispatchItemId - Dispatch item ID
+ * Get dispatch assignments for a dispatch item or planning slot.
+ * Supports: (1) legacy dispatch_item_id, (2) Viaplano slot id "slot-{assignmentId}-{date}".
+ * @param {string|number} dispatchItemIdOrSlotId - Dispatch item ID or slot id (slot-AssignmentId-Date)
  * @returns {Array} Array of dispatch assignment objects
  */
-export function getDispatchAssignments(dispatchItemId) {
+export function getDispatchAssignments(dispatchItemIdOrSlotId) {
   const state = getState();
   const assignments = state.data.dispatchAssignments || [];
-  
-  return assignments.filter(a => 
-    a.dispatchItemId === dispatchItemId || 
-    a.dispatch_item_id === dispatchItemId
+  const id = String(dispatchItemIdOrSlotId);
+  if (id.startsWith('slot-')) {
+    const rest = id.slice(5);
+    const firstDash = rest.indexOf('-');
+    if (firstDash > 0) {
+      const assignmentIdPart = rest.slice(0, firstDash);
+      const datePart = rest.slice(firstDash + 1);
+      if (datePart.length === 10) {
+        return assignments.filter(
+          (a) =>
+            String(a.assignment_id) === assignmentIdPart && a.date === datePart
+        );
+      }
+    }
+  }
+  return assignments.filter(
+    (a) =>
+      a.dispatchItemId === dispatchItemIdOrSlotId ||
+      a.dispatch_item_id === dispatchItemIdOrSlotId
   );
 }
 
 /**
- * Get assignments for a date and resource type
+ * Get assignments for a date and resource type.
+ * Viaplano: dispatch_assignments have worker_id, vehicle_ids[], device_ids[] (no resourceType).
+ * Legacy: dispatch_assignments may have resource_type + resource_id.
  * @param {string} date - Date string (YYYY-MM-DD)
- * @param {string} resourceType - Resource type ('WORKER', 'VEHICLE', 'DEVICE')
+ * @param {string} resourceType - Resource type ('WORKER', 'VEHICLE', 'DEVICE') or null for all
  * @returns {Array} Array of dispatch assignment objects
  */
 export function getAssignmentsForDate(date, resourceType = null) {
   const state = getState();
   let assignments = state.data.dispatchAssignments || [];
-  
-  assignments = assignments.filter(a => a.date === date);
-  
-  if (resourceType) {
-    assignments = assignments.filter(a => 
-      (a.resourceType || a.resource_type) === resourceType
-    );
+  assignments = assignments.filter((a) => a.date === date);
+  if (!resourceType) return assignments;
+  if (resourceType === 'WORKER') {
+    return assignments.filter((a) => a.worker_id != null);
   }
-  
-  return assignments;
+  if (resourceType === 'VEHICLE') {
+    return assignments.filter((a) => {
+      const ids = a.vehicle_ids;
+      return Array.isArray(ids) && ids.length > 0;
+    });
+  }
+  if (resourceType === 'DEVICE') {
+    return assignments.filter((a) => {
+      const ids = a.device_ids;
+      return Array.isArray(ids) && ids.length > 0;
+    });
+  }
+  return assignments.filter(
+    (a) => (a.resourceType || a.resource_type) === resourceType
+  );
+}
+
+// ========== Zentrales Planungsmodell (Viaplano) ==========
+// Führende Entität: assignments (Einsätze). dispatch_assignments = Planungen pro Tag.
+// Einsatzorte (Locations) sind erstklassige Entität: Jeder Einsatz ist genau einem Ort zugeordnet.
+// Ohne Einsatzort ist keine fachlich korrekte Disposition möglich (Mitarbeiter arbeiten an einem Ort).
+
+/**
+ * Planning slots for a date range (derived from assignments).
+ * One slot = one assignment on one day within [start_date, end_date].
+ * @param {string} dateFrom - Start date (YYYY-MM-DD)
+ * @param {string} dateTo - End date (YYYY-MM-DD)
+ * @returns {Array} Slots: { id, assignmentId, date, locationId, title, notes, status, start_date, end_date }
+ */
+export function getPlanningSlotsForDateRange(dateFrom, dateTo) {
+  const state = getState();
+  const assignments = state.data.assignments || [];
+  const slots = [];
+  const from = new Date(dateFrom);
+  const to = new Date(dateTo);
+  for (const a of assignments) {
+    const start = new Date(a.start_date);
+    const end = new Date(a.end_date);
+    for (let d = new Date(Math.max(from.getTime(), start.getTime())); d <= end && d <= to; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      if (dateStr >= dateFrom && dateStr <= dateTo) {
+        const assignmentStatus = a.status || 'Geplant';
+        slots.push({
+          id: `slot-${a.id}-${dateStr}`,
+          assignmentId: a.id,
+          date: dateStr,
+          locationId: a.location_id,
+          title: a.title,
+          notes: a.notes,
+          status: assignmentStatus === 'Abgeschlossen' ? 'CONFIRMED' : 'PLANNED',
+          start_date: a.start_date,
+          end_date: a.end_date,
+          allDay: true,
+          all_day: true
+        });
+      }
+    }
+  }
+  return slots;
+}
+
+/**
+ * Dispatch assignments for one slot (assignment + date).
+ * @param {string|number} assignmentId - Assignment ID
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @returns {Array} dispatch_assignments for this slot
+ */
+export function getDispatchAssignmentsForSlot(assignmentId, date) {
+  const state = getState();
+  const list = state.data.dispatchAssignments || [];
+  return list.filter(
+    (a) => String(a.assignment_id) === String(assignmentId) && a.date === date
+  );
+}
+
+/**
+ * Resource pills for a slot (for card display).
+ * Viaplano: dispatch_assignments have worker_id, vehicle_ids[], device_ids[].
+ * @param {string|number} assignmentId - Assignment ID
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @returns {Array} Pills: { resourceType, resourceId, id, dispatchAssignmentId }
+ */
+export function getResourcePillsForSlot(assignmentId, date) {
+  const plans = getDispatchAssignmentsForSlot(assignmentId, date);
+  const pills = [];
+  for (const p of plans) {
+    const daId = p.id;
+    if (p.worker_id) {
+      pills.push({
+        resourceType: 'WORKER',
+        resourceId: p.worker_id,
+        id: daId,
+        dispatchAssignmentId: daId
+      });
+    }
+    const vIds = Array.isArray(p.vehicle_ids) ? p.vehicle_ids : [];
+    for (const vid of vIds) {
+      pills.push({
+        resourceType: 'VEHICLE',
+        resourceId: vid,
+        id: `${daId}-v-${vid}`,
+        dispatchAssignmentId: daId
+      });
+    }
+    const dIds = Array.isArray(p.device_ids) ? p.device_ids : [];
+    for (const did of dIds) {
+      pills.push({
+        resourceType: 'DEVICE',
+        resourceId: did,
+        id: `${daId}-d-${did}`,
+        dispatchAssignmentId: daId
+      });
+    }
+  }
+  return pills;
+}
+
+/**
+ * Worker IDs assigned on a date (Viaplano: from dispatch_assignments).
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @returns {Set<string>} Set of worker ID strings
+ */
+export function getAssignedWorkerIdsOnDate(date) {
+  const state = getState();
+  const list = state.data.dispatchAssignments || [];
+  const set = new Set();
+  list.filter((a) => a.date === date).forEach((a) => {
+    if (a.worker_id) set.add(String(a.worker_id));
+  });
+  return set;
+}
+
+/**
+ * Doppelbuchung: Hat ein Slot (assignmentId, date) mindestens einen Worker, der an diesem Tag
+ * auch in einem anderen Einsatz (ggf. anderer Einsatzort) eingeplant ist? Gleiche Person, zwei Orte = Konflikt.
+ * @param {string|number} assignmentId - Assignment ID
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @returns {boolean}
+ */
+export function getSlotHasConflict(assignmentId, date) {
+  const state = getState();
+  const list = state.data.dispatchAssignments || [];
+  const onDate = list.filter((a) => a.date === date && a.worker_id);
+  const workersInThisSlot = new Set(
+    onDate.filter((a) => String(a.assignment_id) === String(assignmentId)).map((a) => String(a.worker_id))
+  );
+  if (workersInThisSlot.size === 0) return false;
+  const otherAssignments = onDate.filter((a) => String(a.assignment_id) !== String(assignmentId));
+  for (const w of workersInThisSlot) {
+    if (otherAssignments.some((a) => String(a.worker_id) === w)) return true;
+  }
+  return false;
 }
 
 /**
@@ -436,35 +601,28 @@ export function getUnassignedResourcesForDate(date, resourceType) {
       return [];
   }
   
-  // For WORKER: check dispatch assignments (multiple per day allowed, but we show if ANY assignment exists)
+  // For WORKER: use Viaplano model (dispatch_assignments.worker_id + date) first; fallback to dispatch_items
   if (resourceType === 'WORKER') {
-    const dispatchItems = getDispatchItems(date, date);
-    const assignedWorkerIds = new Set();
-    
-    dispatchItems.forEach(item => {
-      const assignments = getDispatchAssignments(item.id);
-      assignments.forEach(a => {
-        if ((a.resourceType || a.resource_type) === 'WORKER') {
-          assignedWorkerIds.add(String(a.resourceId || a.resource_id));
-        }
-      });
-    });
-    
-    const result = allResources.filter(r => !assignedWorkerIds.has(String(r.id)));
+    const assignedWorkerIds = getAssignedWorkerIdsOnDate(date);
+    const result = allResources.filter((r) => !assignedWorkerIds.has(String(r.id)));
     selectorCache.unassignedResources.set(cacheKey, result);
     return result;
   }
   
-  // For VEHICLE/DEVICE: use old logic (single assignment per day)
-  const assigned = getAssignmentsForDate(date, resourceType)
-    .map(a => a.resourceId || a.resource_id);
-  
-  // Filter out assigned resources
-  const result = allResources.filter(r => !assigned.includes(r.id));
-  
-  // Cache result
+  // For VEHICLE/DEVICE: Viaplano uses vehicle_ids[] / device_ids[] per dispatch_assignment
+  const list = getAssignmentsForDate(date, resourceType);
+  const assignedIds = new Set();
+  list.forEach((a) => {
+    if (resourceType === 'VEHICLE' && Array.isArray(a.vehicle_ids)) {
+      a.vehicle_ids.forEach((id) => assignedIds.add(String(id)));
+    } else if (resourceType === 'DEVICE' && Array.isArray(a.device_ids)) {
+      a.device_ids.forEach((id) => assignedIds.add(String(id)));
+    } else if (a.resourceId != null || a.resource_id != null) {
+      assignedIds.add(String(a.resourceId || a.resource_id));
+    }
+  });
+  const result = allResources.filter((r) => !assignedIds.has(String(r.id)));
   selectorCache.unassignedResources.set(cacheKey, result);
-  
   return result;
 }
 
@@ -522,38 +680,47 @@ export async function getUnassignedWorkersForTimeWindow(date, startTime = null, 
 }
 
 /**
- * Get dispatch items for a worker and day - MEMOIZED
+ * Planning slots for one worker on one day (Viaplano).
+ * Slots an diesem Tag, bei denen der Mitarbeiter eingeplant ist.
+ * @param {string} date - Date (YYYY-MM-DD)
+ * @param {string|number} workerId - Worker ID
+ * @returns {Array} Slots mit assignmentId, date, locationId, title, status, …
+ */
+export function getPlanningSlotsForWorkerDay(date, workerId) {
+  const slots = getPlanningSlotsForDateRange(date, date);
+  return slots.filter((slot) => {
+    const plans = getDispatchAssignmentsForSlot(slot.assignmentId, slot.date);
+    return plans.some((p) => String(p.worker_id) === String(workerId));
+  });
+}
+
+/**
+ * Get dispatch items or planning slots for a worker and day - MEMOIZED
+ * Viaplano: Wenn Einsätze existieren, werden Slots für diesen Worker/Tag zurückgegeben.
  * @param {string} date - Date string (YYYY-MM-DD)
  * @param {string|number} workerId - Worker ID
- * @returns {Array} Array of dispatch item objects
+ * @returns {Array} Array of dispatch item or slot objects
  */
 export function getDispatchItemsForWorkerDay(date, workerId) {
-  // Check cache validity
   isCacheValid();
-  
-  // Create cache key
   const cacheKey = `${date}-${workerId}`;
-  
-  // Check cache
   if (selectorCache.dispatchItemsForWorkerDay.has(cacheKey)) {
     return selectorCache.dispatchItemsForWorkerDay.get(cacheKey);
   }
-  
-  const dispatchItems = getDispatchItems(date, date);
-  
-  // Filter items where worker is assigned
-  const result = dispatchItems.filter(item => {
-    const assignments = getDispatchAssignments(item.id);
-    return assignments.some(a => 
-      (a.resourceType || a.resource_type) === 'WORKER' &&
-      (a.resourceId || a.resource_id) === workerId &&
-      a.date === date
-    );
-  });
-  
-  // Cache result
+  const state = getState();
+  const hasAssignments = (state.data.assignments || []).length > 0;
+  const result = hasAssignments
+    ? getPlanningSlotsForWorkerDay(date, workerId)
+    : getDispatchItems(date, date).filter((item) => {
+        const assignments = getDispatchAssignments(item.id);
+        return assignments.some(
+          (a) =>
+            (a.resourceType || a.resource_type) === 'WORKER' &&
+            String(a.resourceId || a.resource_id) === String(workerId) &&
+            a.date === date
+        );
+      });
   selectorCache.dispatchItemsForWorkerDay.set(cacheKey, result);
-  
   return result;
 }
 
@@ -685,14 +852,14 @@ export function getWorkers() {
 }
 
 /**
- * Get locations (deduped by id)
+ * Get locations (deduped by id).
+ * Einsatzort-Modell: id, name, adresse (optional), code/referenz (optional), status (aktiv/inaktiv).
  * @returns {Array} Array of location objects
  */
 export function getLocations() {
   const state = getState();
   let locations = state.data.locations || [];
   
-  // Dedupe by id
   const seen = new Set();
   locations = locations.filter(loc => {
     if (seen.has(loc.id)) return false;
@@ -701,6 +868,62 @@ export function getLocations() {
   });
   
   return locations;
+}
+
+/**
+ * Einsatzort nach ID. Wird für Board-Karten und Konflikt-/Filterlogik genutzt.
+ * @param {string|number} locationId
+ * @returns {object|null} Location oder null
+ */
+export function getLocationById(locationId) {
+  if (locationId == null || locationId === '') return null;
+  const state = getState();
+  const list = state.data.locations || [];
+  return list.find(loc => String(loc.id) === String(locationId)) || null;
+}
+
+/**
+ * Nur aktive Einsatzorte (Status aktiv oder fehlend = aktiv).
+ * @returns {Array}
+ */
+export function getActiveLocations() {
+  return getLocations().filter(loc => {
+    const s = (loc.status || '').toLowerCase();
+    return s !== 'inaktiv' && s !== 'inactive';
+  });
+}
+
+/**
+ * Gibt es mindestens einen Einsatzort? Ohne Einsatzorte ist keine Planung möglich.
+ * @returns {boolean}
+ */
+export function hasAnyLocations() {
+  return getLocations().length > 0;
+}
+
+/**
+ * Hat ein Einsatz einen gültigen Einsatzort? Ohne Einsatzort ist DropZone inaktiv.
+ * @param {object} assignment - Assignment (Einsatz)
+ * @returns {boolean}
+ */
+export function assignmentHasLocation(assignment) {
+  if (!assignment) return false;
+  const id = assignment.location_id ?? assignment.locationId;
+  if (id == null || id === '') return false;
+  return getLocationById(id) != null;
+}
+
+/**
+ * Einsätze, die einem Einsatzort zugeordnet sind (optional für Filter).
+ * @param {string|number} locationId
+ * @returns {Array}
+ */
+export function getAssignmentsByLocation(locationId) {
+  if (locationId == null || locationId === '') return [];
+  const state = getState();
+  return (state.data.assignments || []).filter(
+    a => String(a.location_id ?? a.locationId) === String(locationId)
+  );
 }
 
 /**
@@ -737,7 +960,9 @@ export function getFilteredResourcesByContext(context, query = '') {
       allItems = getLocations();
       break;
     case 'DISPATCH':
-      allItems = getDispatchItems();
+      allItems = (state.data.assignments || []).length > 0
+        ? (state.data.assignments || [])
+        : getDispatchItems();
       break;
     default:
       return { items: [], count: 0 };
