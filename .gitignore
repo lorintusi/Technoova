@@ -25,6 +25,9 @@ yarn.lock
 logs/
 *.log
 
+# Scripts Runtime
+.technoova.pid
+
 # Backups
 _FULL_BACKUP_*/
 _archive/

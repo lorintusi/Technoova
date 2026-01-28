@@ -1,0 +1,117 @@
+#!/bin/bash
+
+# Technoova Planner - Stop Script
+# Stoppt alle laufenden Services
+
+# Farben für Output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}  Technoova Planner wird gestoppt...${NC}"
+echo -e "${YELLOW}========================================${NC}"
+echo ""
+
+# Projektverzeichnis
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$PROJECT_DIR"
+
+# PID-Datei für den Server
+PID_FILE="$PROJECT_DIR/.technoova.pid"
+
+# Prüfen ob PID-Datei existiert
+if [ ! -f "$PID_FILE" ]; then
+  echo -e "${YELLOW}⚠️  Keine laufende Technoova-Instanz gefunden (PID-Datei fehlt)${NC}"
+  echo ""
+  
+  # Trotzdem nach Node-Prozessen auf Port 8080 suchen
+  if lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+    echo -e "${YELLOW}🔍 Aber Port 8080 ist belegt. Versuche zu stoppen...${NC}"
+    PIDS=$(lsof -ti:8080)
+    for PID in $PIDS; do
+      echo -e "   Stoppe Prozess: $PID"
+      kill -15 $PID 2>/dev/null
+    done
+    sleep 1
+    
+    # Prüfen ob erfolgreich
+    if lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+      echo -e "${RED}   Prozess läuft noch. Erzwinge Stopp...${NC}"
+      for PID in $PIDS; do
+        kill -9 $PID 2>/dev/null
+      done
+      echo -e "${GREEN}✓ Alle Prozesse auf Port 8080 gestoppt${NC}"
+    else
+      echo -e "${GREEN}✓ Port 8080 ist jetzt frei${NC}"
+    fi
+  fi
+  
+  exit 0
+fi
+
+# PID aus Datei lesen
+PID=$(cat "$PID_FILE")
+
+# Prüfen ob Prozess läuft
+if ! ps -p $PID > /dev/null 2>&1; then
+  echo -e "${YELLOW}⚠️  Server läuft nicht mehr (PID: $PID)${NC}"
+  rm -f "$PID_FILE"
+  exit 0
+fi
+
+# Prozessinfo anzeigen
+PROCESS_NAME=$(ps -p $PID -o comm=)
+echo -e "${YELLOW}🔍 Gefundener Prozess:${NC}"
+echo -e "   PID:  $PID"
+echo -e "   Name: $PROCESS_NAME"
+echo ""
+
+# Graceful shutdown (SIGTERM)
+echo -e "${YELLOW}🛑 Stoppe Server (graceful shutdown)...${NC}"
+kill -15 $PID
+
+# Warten bis Prozess beendet ist (max 5 Sekunden)
+for i in {1..5}; do
+  if ! ps -p $PID > /dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+  echo -e "   Warte auf Beendigung... ($i/5)"
+done
+
+# Prüfen ob Prozess noch läuft
+if ps -p $PID > /dev/null 2>&1; then
+  echo -e "${RED}⚠️  Prozess läuft noch. Erzwinge Stopp (SIGKILL)...${NC}"
+  kill -9 $PID
+  sleep 1
+fi
+
+# Final check
+if ! ps -p $PID > /dev/null 2>&1; then
+  rm -f "$PID_FILE"
+  echo ""
+  echo -e "${GREEN}========================================${NC}"
+  echo -e "${GREEN}✅ Technoova Planner erfolgreich gestoppt!${NC}"
+  echo -e "${GREEN}========================================${NC}"
+  echo ""
+else
+  echo -e "${RED}❌ Fehler: Prozess konnte nicht gestoppt werden!${NC}"
+  echo "   PID: $PID"
+  echo ""
+  echo -e "${YELLOW}Manuell stoppen mit:${NC}"
+  echo "   kill -9 $PID"
+  exit 1
+fi
+
+# Auch alle anderen Node-Prozesse auf Port 8080 stoppen (Sicherheit)
+if lsof -Pi :8080 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+  echo -e "${YELLOW}🧹 Räume auf: Stoppe weitere Prozesse auf Port 8080...${NC}"
+  PIDS=$(lsof -ti:8080)
+  for PID in $PIDS; do
+    kill -9 $PID 2>/dev/null
+  done
+  echo -e "${GREEN}✓ Port 8080 ist jetzt frei${NC}"
+  echo ""
+fi
