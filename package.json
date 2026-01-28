@@ -1,0 +1,38 @@
+{
+  "name": "technoova-planner",
+  "version": "1.0.0",
+  "description": "Technoova Planner - Ressourcenplanung und Zeiterfassung für Bauprojekte",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "smoke": "node scripts/smoke.mjs",
+    "check-php": "node check_php.js",
+    "check-duplicates": "node scripts/check-duplicates.mjs",
+    "check-imports": "node scripts/check-imports.mjs",
+    "check-rbac": "node scripts/check-rbac.mjs",
+    "check-utils": "node scripts/check-utils-duplicates.mjs",
+    "check-all": "npm run check-duplicates && npm run check-imports && npm run check-rbac && npm run check-utils"
+  },
+  "keywords": [
+    "planning",
+    "resource-management",
+    "construction",
+    "time-tracking",
+    "dispatch"
+  ],
+  "author": "Technoova",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/technoova/loomone-planner"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
+
