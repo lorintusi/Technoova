@@ -371,6 +371,10 @@ async function bindGlobalHandlers() {
   const { bindDispatchHandlers } = await import('./handlers/dispatchHandlers.js');
   bindDispatchHandlers();
   
+  // Bind fullscreen handlers
+  const { bindFullscreenHandlers } = await import('./handlers/fullscreenHandler.js');
+  bindFullscreenHandlers();
+  
   // Export user modal functions globally
   const { closeUserModal, openCreateUserModal, openEditUserModal } = await import('./views/modals/userModal.js');
   window.closeUserModal = closeUserModal;
