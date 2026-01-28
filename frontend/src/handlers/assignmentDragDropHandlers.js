@@ -49,19 +49,36 @@ export function bindAssignmentDragDropHandlers() {
   // Drag over: Drop zone highlight
   on('dragover', '[data-drop]', (e) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     
     const dropZone = e.target.closest('[data-drop]');
-    if (dropZone) {
-      const dropType = dropZone.getAttribute('data-drop');
-      const dragType = draggedResource?.type;
-      
-      // Only highlight if types match
-      if (dragType === dropType) {
-        dropZone.classList.add('dropzone--over');
-      } else {
-        dropZone.classList.add('dropzone--invalid');
-      }
+    if (!dropZone || !draggedResource) return;
+    
+    const dropType = dropZone.getAttribute('data-drop');
+    const dragType = draggedResource?.type;
+    const dispatchId = dropZone.getAttribute('data-dispatch-id');
+    
+    // Check type match
+    if (dragType !== dropType) {
+      e.dataTransfer.dropEffect = 'none';
+      dropZone.classList.add('dropzone--invalid');
+      dropZone.classList.remove('dropzone--over', 'dropzone--allowed');
+      return;
+    }
+    
+    // Check if dispatch item has location_id
+    const dispatchItem = getDispatchItems().find(item => String(item.id) === String(dispatchId));
+    const locationId = dispatchItem?.locationId || dispatchItem?.location_id;
+    
+    if (!locationId) {
+      // Block: No location set
+      e.dataTransfer.dropEffect = 'none';
+      dropZone.classList.add('dropzone--blocked');
+      dropZone.classList.remove('dropzone--over', 'dropzone--allowed', 'dropzone--invalid');
+    } else {
+      // Allow: Location is set and types match
+      e.dataTransfer.dropEffect = 'move';
+      dropZone.classList.add('dropzone--allowed');
+      dropZone.classList.remove('dropzone--over', 'dropzone--invalid', 'dropzone--blocked');
     }
   });
   
@@ -69,7 +86,7 @@ export function bindAssignmentDragDropHandlers() {
   on('dragleave', '[data-drop]', (e) => {
     const dropZone = e.target.closest('[data-drop]');
     if (dropZone) {
-      dropZone.classList.remove('dropzone--over', 'dropzone--invalid');
+      dropZone.classList.remove('dropzone--over', 'dropzone--invalid', 'dropzone--allowed', 'dropzone--blocked');
     }
   });
   
@@ -82,7 +99,7 @@ export function bindAssignmentDragDropHandlers() {
     if (!dropZone) return;
     
     // Remove highlights
-    dropZone.classList.remove('dropzone--over', 'dropzone--invalid');
+    dropZone.classList.remove('dropzone--over', 'dropzone--invalid', 'dropzone--allowed', 'dropzone--blocked');
     
     // Get drop zone info
     const dropType = dropZone.getAttribute('data-drop');
@@ -120,8 +137,22 @@ export function bindAssignmentDragDropHandlers() {
       return;
     }
     
-    // Check if already assigned
+    // ⚠️ KRITISCHE REGEL: Einsatzort muss gesetzt sein, bevor Ressourcen zugewiesen werden können
     const state = getState();
+    const dispatchItem = getDispatchItems().find(item => String(item.id) === String(dispatchId));
+    
+    if (!dispatchItem) {
+      showToast('Einsatz nicht gefunden', 'error');
+      return;
+    }
+    
+    const locationId = dispatchItem.locationId || dispatchItem.location_id;
+    if (!locationId) {
+      showToast('⚠️ Bitte zuerst einen Einsatzort setzen, bevor Ressourcen zugewiesen werden', 'error');
+      return;
+    }
+    
+    // Check if already assigned
     const existingAssignments = (state.data.dispatchAssignments || []).filter(
       a => String(a.dispatchItemId || a.dispatch_item_id) === String(dispatchId) &&
            (a.resourceType || a.resource_type) === dragData.type &&

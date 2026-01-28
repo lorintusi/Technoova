@@ -8,6 +8,7 @@ import { getState } from '../../state/index.js';
 import { getUnassignedResourcesForDate, getAssignedWorkerIdsOnDate, getActiveLocations } from '../../state/selectors.js';
 import { formatDateLocal } from '../../utils/format.js';
 import { isAdmin } from '../../utils/permissions.js';
+import { renderEmptyState } from '../emptyStates.js';
 
 function filterIndividualWorkers(workers, teams = []) {
   const teamNames = new Set((teams || []).map((t) => t.name));
@@ -20,19 +21,19 @@ function filterIndividualWorkers(workers, teams = []) {
 function getResourceStatusLabel(resource, resourceType, date, state) {
   if (resourceType === 'WORKER') {
     const status = (resource.status || '').toLowerCase();
-    if (status === 'urlaub') return { text: 'Urlaub', token: 'absent' };
-    if (status === 'krank' || status === 'abwesend') return { text: 'Abwesend', token: 'absent' };
+    if (status === 'urlaub') return { text: 'Urlaub', token: 'absent', icon: '🌴' };
+    if (status === 'krank' || status === 'abwesend') return { text: 'Abwesend', token: 'absent', icon: '🏥' };
     const assignedIds = getAssignedWorkerIdsOnDate(date);
-    if (assignedIds.has(String(resource.id))) return { text: 'Eingeplant', token: 'assigned' };
-    return { text: 'Verfügbar', token: 'available' };
+    if (assignedIds.has(String(resource.id))) return { text: 'Eingeplant', token: 'assigned', icon: '📅' };
+    return { text: 'Verfügbar', token: 'available', icon: '✓' };
   }
   if (resourceType === 'LOCATION') {
-    return { text: 'Verfügbar', token: 'available' };
+    return { text: 'Verfügbar', token: 'available', icon: '✓' };
   }
   const list = getUnassignedResourcesForDate(date, resourceType);
   const isAssigned = !list.some((r) => String(r.id) === String(resource.id));
-  if (isAssigned) return { text: 'Eingeplant', token: 'assigned' };
-  return { text: 'Verfügbar', token: 'available' };
+  if (isAssigned) return { text: 'Eingeplant', token: 'assigned', icon: '📅' };
+  return { text: 'Verfügbar', token: 'available', icon: '✓' };
 }
 
 export function renderBoardResources() {
@@ -45,7 +46,7 @@ export function renderBoardResources() {
 
   let items = [];
   let title = 'Personal';
-  let emptyLabel = 'Kein Personal';
+  let emptyStateType = 'no-workers';
 
   if (context === 'WORKER') {
     let workers = (state.data.workers || []).filter((w) => (w.status || '').toLowerCase() === 'arbeitsbereit');
@@ -53,19 +54,19 @@ export function renderBoardResources() {
     if (query) workers = workers.filter((w) => (w.name || '').toLowerCase().includes(query));
     items = workers;
     title = 'Personal';
-    emptyLabel = 'Keine Mitarbeiter';
+    emptyStateType = query ? 'no-results' : 'no-workers';
   } else if (context === 'VEHICLE') {
     items = (state.data.vehicles || []).filter((v) => !query || (v.name || v.licensePlate || '').toLowerCase().includes(query));
     title = 'Fahrzeuge';
-    emptyLabel = 'Keine Fahrzeuge';
+    emptyStateType = query ? 'no-results' : 'no-vehicles';
   } else if (context === 'DEVICE') {
     items = (state.data.devices || []).filter((d) => !query || (d.name || d.serialNumber || '').toLowerCase().includes(query));
     title = 'Geräte';
-    emptyLabel = 'Keine Geräte';
+    emptyStateType = query ? 'no-results' : 'no-devices';
   } else if (context === 'LOCATION') {
     items = getActiveLocations().filter((loc) => !query || (loc.name || loc.code || loc.address || '').toLowerCase().includes(query));
     title = 'Einsatzorte';
-    emptyLabel = 'Keine Einsatzorte';
+    emptyStateType = query ? 'no-results' : 'no-locations';
   }
 
   const resourceItems = items.map((item) => {
@@ -90,26 +91,73 @@ export function renderBoardResources() {
           <span class="board-resource__name">${displayName}</span>
           ${meta ? `<span class="board-resource__meta">${meta}</span>` : ''}
         </div>
-        <span class="board-resource__status board-resource__status--${statusInfo.token}">${statusInfo.text}</span>
+        <span class="board-resource__status board-resource__status--${statusInfo.token}">
+          ${statusInfo.icon ? `<span class="board-resource__status-icon">${statusInfo.icon}</span>` : ''}
+          ${statusInfo.text}
+        </span>
       </div>
     `;
   });
 
+  // Separate Locations from Resources for better UX hierarchy
+  const isLocationContext = context === 'LOCATION';
+  const resourceTabClass = isLocationContext ? 'board-resources--location-mode' : 'board-resources--resource-mode';
+
   return `
-    <aside class="board-resources" aria-label="Ressourcen">
+    <aside class="board-resources ${resourceTabClass}" aria-label="Planbare Objekte">
       <div class="board-resources__header">
-        <h2 class="board-resources__title">${title}</h2>
-        <div class="board-resources__tabs">
-          <button type="button" class="board-tab ${context === 'WORKER' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="WORKER">Personal</button>
-          <button type="button" class="board-tab ${context === 'VEHICLE' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="VEHICLE">Fahrzeuge</button>
-          <button type="button" class="board-tab ${context === 'DEVICE' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="DEVICE">Geräte</button>
-          <button type="button" class="board-tab ${context === 'LOCATION' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="LOCATION" id="btn-locations">📍 Einsatzorte</button>
+        <div class="board-resources__title-row">
+          <h2 class="board-resources__title">
+            ${isLocationContext ? '📍 Einsatzorte' : '📦 Ressourcen'}
+          </h2>
+          <span class="board-resources__count">${items.length}</span>
         </div>
-        ${context === 'LOCATION' ? '<button type="button" class="board-resources__manage-btn" id="btn-locations-manage" title="Einsatzorte verwalten">Verwalten</button>' : ''}
+        
+        <!-- Context Switcher -->
+        <div class="board-resources__context-switcher">
+          <div class="board-resources__context-group board-resources__context-group--locations">
+            <button type="button" 
+              class="board-context-btn ${context === 'LOCATION' ? 'board-context-btn--active' : ''}" 
+              data-action="set-resource-context" 
+              data-resource-context="LOCATION"
+              title="Einsatzorte">
+              <span class="board-context-btn__icon">📍</span>
+              <span class="board-context-btn__label">Einsatzorte</span>
+            </button>
+          </div>
+          <div class="board-resources__divider-line"></div>
+          <div class="board-resources__context-group board-resources__context-group--resources">
+            <button type="button" 
+              class="board-context-btn ${context === 'WORKER' ? 'board-context-btn--active' : ''}" 
+              data-action="set-resource-context" 
+              data-resource-context="WORKER"
+              title="Personal">
+              <span class="board-context-btn__icon">👤</span>
+              <span class="board-context-btn__label">Personal</span>
+            </button>
+            <button type="button" 
+              class="board-context-btn ${context === 'VEHICLE' ? 'board-context-btn--active' : ''}" 
+              data-action="set-resource-context" 
+              data-resource-context="VEHICLE"
+              title="Fahrzeuge">
+              <span class="board-context-btn__icon">🚗</span>
+              <span class="board-context-btn__label">Fahrzeuge</span>
+            </button>
+            <button type="button" 
+              class="board-context-btn ${context === 'DEVICE' ? 'board-context-btn--active' : ''}" 
+              data-action="set-resource-context" 
+              data-resource-context="DEVICE"
+              title="Geräte">
+              <span class="board-context-btn__icon">🔧</span>
+              <span class="board-context-btn__label">Geräte</span>
+            </button>
+          </div>
+        </div>
+        
         <input type="text" class="board-resources__search input" data-role="resource-search" placeholder="Suchen…" value="${state.ui.resourceQuery || ''}" />
       </div>
       <div class="board-resources__list">
-        ${resourceItems.length ? resourceItems.join('') : `<div class="board-resources__empty">${emptyLabel}</div>`}
+        ${resourceItems.length ? resourceItems.join('') : renderEmptyState(emptyStateType, { query })}
       </div>
     </aside>
   `;

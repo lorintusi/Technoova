@@ -384,6 +384,10 @@ async function bindGlobalHandlers() {
   const { bindBoardHandlers } = await import('./handlers/boardHandlers.js');
   bindBoardHandlers();
   
+  // Bind drawer handlers (Quick Admin Menu + Create Drawers)
+  const { bindDrawerHandlers } = await import('./handlers/drawerHandlers.js');
+  bindDrawerHandlers();
+  
   // Export user modal functions globally
   const { closeUserModal, openCreateUserModal, openEditUserModal } = await import('./views/modals/userModal.js');
   window.closeUserModal = closeUserModal;

@@ -118,6 +118,14 @@ export function bindDragDropHandlers() {
       return;
     }
     
+    // ⚠️ KRITISCHE REGEL: Einsatzort muss gesetzt sein, bevor Ressourcen zugewiesen werden können
+    const locationId = dispatchItem.locationId || dispatchItem.location_id;
+    if (!locationId) {
+      showToast('⚠️ Bitte zuerst einen Einsatzort setzen, bevor Ressourcen zugewiesen werden', 'error');
+      dropZone.classList.remove('dispatch-card__section--drop-active', 'dispatch-card__section--drop-invalid');
+      return;
+    }
+    
     // Get existing assignments
     const existingAssignments = getDispatchAssignments(dispatchItemId);
     

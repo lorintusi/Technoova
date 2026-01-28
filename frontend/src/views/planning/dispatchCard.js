@@ -106,48 +106,100 @@ export function renderDispatchCard(item, assignments = []) {
   };
   const categoryLabel = categoryLabels[category] || category;
   
+  // ⚠️ Warn if no location set (required for resource assignments)
+  const hasLocation = !!(item.locationId || item.location_id);
+  const locationWarning = !hasLocation ? 'dispatch-card--no-location' : '';
+
   return `
-    <div class="dispatch-card" data-dispatch-item-id="${item.id}">
-      <div class="dispatch-card__header">
-        <div class="dispatch-card__location">
-          <strong>${locationCode}</strong>
-          ${locationAddress ? `<div class="dispatch-card__address">${locationAddress}</div>` : ''}
+    <div class="dispatch-card ${locationWarning}" data-dispatch-item-id="${item.id}">
+      <!-- EINSATZORT: PROMINENT HEADER -->
+      <div class="dispatch-card__location-header ${!hasLocation ? 'dispatch-card__location-header--missing' : ''}">
+        <div class="dispatch-card__location-icon">
+          ${hasLocation ? '📍' : '⚠️'}
         </div>
-        <div class="dispatch-card__meta">
-          <span class="badge badge--primary">${categoryLabel}</span>
-          <span class="badge ${statusClass}">${statusLabel}</span>
+        <div class="dispatch-card__location-info">
+          <div class="dispatch-card__location-name">
+            ${hasLocation ? `<strong>${locationCode}</strong>` : '<strong>Kein Einsatzort</strong>'}
+          </div>
+          ${locationAddress && hasLocation ? `
+            <div class="dispatch-card__location-address">${locationAddress}</div>
+          ` : ''}
+          ${!hasLocation ? `
+            <div class="dispatch-card__location-warning">Bitte Einsatzort setzen, bevor Ressourcen zugewiesen werden</div>
+          ` : ''}
+        </div>
+        <div class="dispatch-card__meta-badges">
+          <span class="badge badge--sm badge--primary">${categoryLabel}</span>
+          <span class="badge badge--sm ${statusClass}">${statusLabel}</span>
         </div>
       </div>
+      
+      <!-- TIME & NOTE -->
       <div class="dispatch-card__body">
-        <div class="dispatch-card__time">
-          <span class="dispatch-card__time-label">⏰</span>
-          <span>${timeDisplay}</span>
+        <div class="dispatch-card__time-row">
+          <span class="dispatch-card__time-icon">⏰</span>
+          <span class="dispatch-card__time-text">${timeDisplay}</span>
         </div>
         ${item.note ? `
           <div class="dispatch-card__note">
-            ${item.note}
+            💬 ${item.note}
           </div>
         ` : ''}
-        <div 
-          class="dispatch-card__section dispatch-card__section--drop-zone ${workers.length > 0 ? '' : 'dispatch-card__section--empty'}"
-          data-drop="WORKER"
-          data-dispatch-id="${item.id}"
-          data-dispatch-item-id="${item.id}"
-          data-resource-type="WORKER"
-        >
-          <strong>Personal:</strong>
-          <div class="dispatch-card__resources">
-            ${workers.length > 0 ? workers.map(w => renderResourcePill(w, canEdit)).join('') : '<em class="dropzone-placeholder">Ziehen zum Zuweisen</em>'}
+        <!-- RESSOURCEN: GRUPPIERT & VISUELL KLAR -->
+        <div class="dispatch-card__resources-section">
+          <h4 class="dispatch-card__section-title">Zugewiesene Ressourcen</h4>
+          
+          <div 
+            class="dispatch-card__resource-group dispatch-card__resource-group--workers ${workers.length > 0 ? '' : 'dispatch-card__resource-group--empty'} ${!hasLocation ? 'dispatch-card__resource-group--disabled' : ''}"
+            data-drop="WORKER"
+            data-dispatch-id="${item.id}"
+            data-dispatch-item-id="${item.id}"
+            data-resource-type="WORKER"
+          >
+            <div class="dispatch-card__resource-header">
+              <span class="dispatch-card__resource-icon">👤</span>
+              <strong class="dispatch-card__resource-label">Personal</strong>
+              <span class="dispatch-card__resource-count">${workers.length}</span>
+            </div>
+            <div class="dispatch-card__resource-list">
+              ${workers.length > 0 ? workers.map(w => renderResourcePill(w, canEdit)).join('') : `<span class="dropzone-placeholder">${hasLocation ? 'Personal zuweisen...' : '⚠️ Erst Einsatzort setzen'}</span>`}
+            </div>
+          </div>
+          
+          <div 
+            class="dispatch-card__resource-group dispatch-card__resource-group--vehicles ${vehicles.length > 0 ? '' : 'dispatch-card__resource-group--empty'} ${!hasLocation ? 'dispatch-card__resource-group--disabled' : ''}"
+            data-drop="VEHICLE"
+            data-dispatch-id="${item.id}"
+            data-dispatch-item-id="${item.id}"
+            data-resource-type="VEHICLE"
+          >
+            <div class="dispatch-card__resource-header">
+              <span class="dispatch-card__resource-icon">🚗</span>
+              <strong class="dispatch-card__resource-label">Fahrzeuge</strong>
+              <span class="dispatch-card__resource-count">${vehicles.length}</span>
+            </div>
+            <div class="dispatch-card__resource-list">
+              ${vehicles.length > 0 ? vehicles.map(v => renderResourcePill(v, canEdit)).join('') : `<span class="dropzone-placeholder">${hasLocation ? 'Fahrzeuge zuweisen...' : '⚠️ Erst Einsatzort setzen'}</span>`}
+            </div>
+          </div>
+          
+          <div 
+            class="dispatch-card__resource-group dispatch-card__resource-group--devices ${devices.length > 0 ? '' : 'dispatch-card__resource-group--empty'} ${!hasLocation ? 'dispatch-card__resource-group--disabled' : ''}"
+            data-drop="DEVICE"
+            data-dispatch-id="${item.id}"
+            data-dispatch-item-id="${item.id}"
+            data-resource-type="DEVICE"
+          >
+            <div class="dispatch-card__resource-header">
+              <span class="dispatch-card__resource-icon">🔧</span>
+              <strong class="dispatch-card__resource-label">Geräte</strong>
+              <span class="dispatch-card__resource-count">${devices.length}</span>
+            </div>
+            <div class="dispatch-card__resource-list">
+              ${devices.length > 0 ? devices.map(d => renderResourcePill(d, canEdit)).join('') : `<span class="dropzone-placeholder">${hasLocation ? 'Geräte zuweisen...' : '⚠️ Erst Einsatzort setzen'}</span>`}
+            </div>
           </div>
         </div>
-        <div 
-          class="dispatch-card__section dispatch-card__section--drop-zone ${vehicles.length > 0 ? '' : 'dispatch-card__section--empty'}"
-          data-drop="VEHICLE"
-          data-dispatch-id="${item.id}"
-          data-dispatch-item-id="${item.id}"
-          data-resource-type="VEHICLE"
-        >
-          <strong>Fahrzeuge:</strong>
           <div class="dispatch-card__resources">
             ${vehicles.length > 0 ? vehicles.map(v => renderResourcePill(v, canEdit)).join('') : '<em class="dropzone-placeholder">Ziehen zum Zuweisen</em>'}
           </div>
