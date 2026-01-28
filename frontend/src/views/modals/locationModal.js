@@ -128,8 +128,8 @@ function escapeHtml(str) {
  */
 function renderLocationModal() {
   return `
-    <div class="modal-overlay" data-close="location-modal">
-      <div class="modal modal--wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+    <div class="modal-overlay location-modal-overlay" data-modal="location-modal">
+      <div class="modal modal--wide" role="dialog" aria-modal="true">
         <div class="modal__header">
           <div class="modal__title">Einsatzorte</div>
           <button type="button" class="btn btn--ghost" id="btn-close-location-modal" aria-label="Schließen">✕</button>
@@ -154,7 +154,7 @@ export function openLocationModal() {
  * Modal schließen
  */
 export function closeLocationModal() {
-  const el = document.querySelector('[data-close="location-modal"]');
+  const el = document.querySelector('[data-modal="location-modal"]');
   if (el) el.remove();
 }
 

@@ -112,8 +112,8 @@ function renderDayColumn(state, dateStr, dayLabel, shortLabel, isToday, slotsOnD
       <div class="day-column__header">${shortLabel}<span class="day-column__label">${dayLabel}</span></div>
       <div class="dispatch-slot-container">
         ${cardsHtml}
-        <div class="empty-slot">
-          <span class="empty-slot__placeholder">Leer</span>
+        <div class="empty-slot drop-zone drop-zone--location" data-drop="board-location" data-slot-date="${dateStr}" title="Einsatzort hierher ziehen → neuer Einsatz">
+          <span class="empty-slot__placeholder">+ Einsatzort hierher ziehen</span>
         </div>
       </div>
     </div>`;

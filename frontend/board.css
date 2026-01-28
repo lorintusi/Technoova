@@ -108,6 +108,22 @@
   border-color: #d1d5db;
 }
 
+.board-resources__manage-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: 6px;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+}
+.board-resources__manage-btn:hover {
+  background: #f3f4f6;
+  color: var(--text-main, #111);
+}
+
 .board-resources__search {
   width: 100%;
   margin-top: 8px;

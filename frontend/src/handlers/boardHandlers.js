@@ -10,6 +10,8 @@ import { formatDateLocal } from '../utils/format.js';
 import { renderApp } from '../views/renderApp.js';
 import { addResourceToSlot } from '../services/dispatchService.js';
 import { showToast } from '../utils/ui.js';
+import { api } from '../api/endpoints.js';
+import { getLocationById } from '../state/selectors.js';
 
 export function bindBoardHandlers() {
   // Woche vor/zurück
@@ -88,6 +90,55 @@ export function bindBoardHandlers() {
     } catch (err) {
       console.error(err);
       showToast('Fehler beim Zuweisen', 'error');
+    }
+  });
+
+  // Drag & Drop: Einsatzort auf Leer-Slot → neuer Einsatz anlegen
+  on('dragover', '[data-drop="board-location"]', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    const zone = e.target.closest('[data-drop="board-location"]');
+    if (zone) zone.classList.add('drop-zone--over');
+  });
+
+  on('dragleave', '[data-drop="board-location"]', (e) => {
+    const zone = e.target.closest('[data-drop="board-location"]');
+    if (zone) zone.classList.remove('drop-zone--over');
+  });
+
+  on('drop', '[data-drop="board-location"]', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const zone = e.target.closest('[data-drop="board-location"]');
+    if (zone) zone.classList.remove('drop-zone--over');
+    const date = zone?.getAttribute('data-slot-date');
+    if (!date) return;
+    let dragData = null;
+    try {
+      const json = e.dataTransfer.getData('application/json');
+      if (json) dragData = JSON.parse(json);
+    } catch (_) {}
+    if (!dragData?.type || dragData.type !== 'LOCATION' || !dragData?.id) return;
+    const location = getLocationById(dragData.id);
+    const title = location?.name || location?.code || 'Einsatz';
+    try {
+      await api.createAssignment({
+        location_id: parseInt(dragData.id, 10),
+        title,
+        start_date: date,
+        end_date: date,
+        notes: null,
+        status: 'Geplant'
+      });
+      const list = await api.getAssignments();
+      const arr = Array.isArray(list) ? list : list?.data ?? list?.items ?? [];
+      const state = getState();
+      setState({ data: { ...state.data, assignments: arr } });
+      showToast('Einsatz angelegt', 'success');
+      renderApp();
+    } catch (err) {
+      console.error(err);
+      showToast('Fehler beim Anlegen des Einsatzes', 'error');
     }
   });
 }

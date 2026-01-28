@@ -18,8 +18,8 @@ import { renderApp } from '../views/renderApp.js';
 import { showToast } from '../utils/ui.js';
 
 export function bindLocationModalHandlers() {
-  // Einsatzorte öffnet Modal (Liste) – Einstieg im Ressourcenpanel (links)
-  on('click', '#btn-locations', (e) => {
+  // „Verwalten“ öffnet Modal (wenn Kontext Einsatzorte) – Einsatzorte-Tab zeigt Liste im Sidebar
+  on('click', '#btn-locations-manage', (e) => {
     e.preventDefault();
     openLocationModal();
   });
@@ -117,10 +117,11 @@ export function bindLocationModalHandlers() {
       } else {
         res = await api.createLocation(payload);
       }
-      if (res && (res.success !== false) && res.data) {
+      // API-Client liefert bei Erfolg teils das Objekt direkt, teils { success, data }
+      const d = res?.data ?? (res && typeof res.id !== 'undefined' ? res : null);
+      if (res && (res.success !== false) && d) {
         const state = getState();
         const locations = state.data.locations || [];
-        const d = res.data;
         const normalized = {
           id: d.id,
           name: d.name,

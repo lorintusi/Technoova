@@ -5,7 +5,7 @@
  */
 
 import { getState } from '../../state/index.js';
-import { getUnassignedResourcesForDate, getAssignedWorkerIdsOnDate } from '../../state/selectors.js';
+import { getUnassignedResourcesForDate, getAssignedWorkerIdsOnDate, getActiveLocations } from '../../state/selectors.js';
 import { formatDateLocal } from '../../utils/format.js';
 import { isAdmin } from '../../utils/permissions.js';
 
@@ -24,6 +24,9 @@ function getResourceStatusLabel(resource, resourceType, date, state) {
     if (status === 'krank' || status === 'abwesend') return { text: 'Abwesend', token: 'absent' };
     const assignedIds = getAssignedWorkerIdsOnDate(date);
     if (assignedIds.has(String(resource.id))) return { text: 'Eingeplant', token: 'assigned' };
+    return { text: 'Verfügbar', token: 'available' };
+  }
+  if (resourceType === 'LOCATION') {
     return { text: 'Verfügbar', token: 'available' };
   }
   const list = getUnassignedResourcesForDate(date, resourceType);
@@ -59,13 +62,17 @@ export function renderBoardResources() {
     items = (state.data.devices || []).filter((d) => !query || (d.name || d.serialNumber || '').toLowerCase().includes(query));
     title = 'Geräte';
     emptyLabel = 'Keine Geräte';
+  } else if (context === 'LOCATION') {
+    items = getActiveLocations().filter((loc) => !query || (loc.name || loc.code || loc.address || '').toLowerCase().includes(query));
+    title = 'Einsatzorte';
+    emptyLabel = 'Keine Einsatzorte';
   }
 
   const resourceItems = items.map((item) => {
     const statusInfo = getResourceStatusLabel(item, context, date, state);
     const isSelected = selected && selected.type === context && String(selected.id) === String(item.id);
     const displayName = item.name || item.title || item.code || `#${item.id}`;
-    const meta = context === 'WORKER' ? (item.role || '') : (item.licensePlate || item.serialNumber || '');
+    const meta = context === 'WORKER' ? (item.role || '') : context === 'LOCATION' ? (item.project_number ?? item.projektnummer ?? '') : (item.licensePlate || item.serialNumber || '');
 
     return `
       <div
@@ -78,7 +85,7 @@ export function renderBoardResources() {
         data-drag-type="${context}"
         data-drag-id="${item.id}"
       >
-        <span class="board-resource__icon">${context === 'WORKER' ? '👤' : context === 'VEHICLE' ? '🚗' : '🔧'}</span>
+        <span class="board-resource__icon">${context === 'WORKER' ? '👤' : context === 'VEHICLE' ? '🚗' : context === 'LOCATION' ? '📍' : '🔧'}</span>
         <div class="board-resource__body">
           <span class="board-resource__name">${displayName}</span>
           ${meta ? `<span class="board-resource__meta">${meta}</span>` : ''}
@@ -96,8 +103,9 @@ export function renderBoardResources() {
           <button type="button" class="board-tab ${context === 'WORKER' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="WORKER">Personal</button>
           <button type="button" class="board-tab ${context === 'VEHICLE' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="VEHICLE">Fahrzeuge</button>
           <button type="button" class="board-tab ${context === 'DEVICE' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="DEVICE">Geräte</button>
+          <button type="button" class="board-tab ${context === 'LOCATION' ? 'board-tab--active' : ''}" data-action="set-resource-context" data-resource-context="LOCATION" id="btn-locations">📍 Einsatzorte</button>
         </div>
-        <button type="button" class="board-resources__locations-btn" id="btn-locations" title="Einsatzorte verwalten (später auch Drag &amp; Drop)">📍 Einsatzorte</button>
+        ${context === 'LOCATION' ? '<button type="button" class="board-resources__manage-btn" id="btn-locations-manage" title="Einsatzorte verwalten">Verwalten</button>' : ''}
         <input type="text" class="board-resources__search input" data-role="resource-search" placeholder="Suchen…" value="${state.ui.resourceQuery || ''}" />
       </div>
       <div class="board-resources__list">
