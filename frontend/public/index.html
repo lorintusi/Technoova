@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Technoova Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&family=Pacifico&family=Satisfy&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Exo+2:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div style="padding:24px;font-family:Inter,Segoe UI,sans-serif;">
+        Lädt… Wenn du das hier siehst, ist JavaScript noch nicht gestartet.
+      </div>
+    </div>
+    <div id="modal-root"></div>
+    <!-- SQL.js for SQLite in browser -->
+    <!-- Using jsDelivr CDN for better reliability -->
+    <!-- Load SQL.js first (non-module) -->
+    <script>
+      (function() {
+        const sqlJsScript = document.createElement('script');
+        sqlJsScript.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js';
+        sqlJsScript.onload = function() {
+          console.log('SQL.js loaded successfully');
+          // Load ESM app entry point (which will import database modules)
+          const appScript = document.createElement('script');
+          appScript.type = 'module';
+          appScript.src = '../src/index.js';
+          document.body.appendChild(appScript);
+        };
+        sqlJsScript.onerror = function() {
+          console.error('Failed to load SQL.js from CDN, trying alternative...');
+          const altScript = document.createElement('script');
+          altScript.src = 'https://unpkg.com/sql.js@1.8.0/dist/sql-wasm.js';
+          altScript.onload = function() {
+            console.log('SQL.js loaded from alternative CDN');
+            const appScript = document.createElement('script');
+            appScript.type = 'module';
+            appScript.src = '../src/index.js';
+            document.body.appendChild(appScript);
+          };
+          altScript.onerror = function() {
+            console.error('Failed to load SQL.js from all sources');
+            alert('Fehler: SQL.js konnte nicht geladen werden. Bitte Internetverbindung prüfen oder lokale Datei verwenden.');
+          };
+          document.head.appendChild(altScript);
+        };
+        document.head.appendChild(sqlJsScript);
+      })();
+    </script>
+  </body>
+</html>

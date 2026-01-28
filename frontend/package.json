@@ -1,0 +1,27 @@
+{
+  "name": "technoova-planner-frontend",
+  "version": "1.0.0",
+  "description": "Technoova Planner Frontend - Modern vanilla JavaScript SPA",
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Frontend wird über Root-Server gestartet: npm start im Root-Verzeichnis'",
+    "lint": "echo 'Linting noch nicht konfiguriert'",
+    "test": "echo 'Tests noch nicht konfiguriert'"
+  },
+  "keywords": [
+    "spa",
+    "vanilla-js",
+    "frontend"
+  ],
+  "author": "Technoova",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {},
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}
+
